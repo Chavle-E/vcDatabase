@@ -1,5 +1,8 @@
 const nextConfig = {
   reactStrictMode: true,
+  env: {
+    MONGODB_URI: process.env.MONGODB_URI,
+  },
   images: {
     domains: [
       // NextJS <Image> component needs to whitelist domains for src={}

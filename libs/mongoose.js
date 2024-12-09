@@ -1,18 +1,28 @@
-import mongoose from "mongoose";
-import User from "@/models/User";
+const mongoose = require("mongoose");
+
+const MONGODB_URI = process.env.MONGODB_URI;
+
+console.log("MONGODB_URI:", MONGODB_URI); 
 
 const connectMongo = async () => {
-  if (!process.env.MONGODB_URI) {
+  if (!MONGODB_URI) {
     throw new Error(
-      "Add the MONGODB_URI environment variable inside .env.local to use mongoose"
+      'Please define the MONGODB_URI environment variable inside .env.local'
     );
   }
-  return mongoose
-    .connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
-    .catch((e) => console.error("Mongoose Client Error: " + e.message));
+
+  try {
+    if (mongoose.connection.readyState === 1) {
+      console.log('Already connected to MongoDB');
+      return;
+    }
+
+    await mongoose.connect(MONGODB_URI);
+    console.log('MongoDB connected successfully');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
 };
 
-export default connectMongo;
+module.exports = connectMongo;
