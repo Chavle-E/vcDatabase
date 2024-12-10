@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Popover } from '@headlessui/react';
+import FilterPanel from './FilterPanel';
 import _ from 'lodash';
 
 const InvestmentDashboard = ({ initialTab = 'funds' }) => {
@@ -11,12 +12,8 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-  const [filters, setFilters] = useState({
-    search: '',
-    country: '',
-    industry: '',
-    stage: ''
-  });
+  const [filters, setFilters] = useState({});
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -26,11 +23,25 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
     try {
       setIsLoading(true);
       
-      // Build query string
+      // Convert filters object to URL parameters
       const params = new URLSearchParams({
-        page,
-        limit: 50,
-        ...filters
+        page: page.toString(),
+        limit: '50'
+      });
+
+      // Add filters to params
+      Object.entries(filters).forEach(([category, fields]) => {
+        Object.entries(fields).forEach(([field, value]) => {
+          if (value) {
+            if (Array.isArray(value)) {
+              value.forEach(v => params.append(`${category}.${field}[]`, v));
+            } else if (typeof value === 'boolean') {
+              params.append(`${category}.${field}`, value ? '1' : '0');
+            } else {
+              params.append(`${category}.${field}`, value);
+            }
+          }
+        });
       });
       
       const response = await fetch(`/api/${activeTab}?${params}`);
@@ -50,195 +61,180 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
     }
   };
 
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setPage(1); // Reset to first page when filters change
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">
-          {activeTab === 'funds' ? 'Investment Funds' : 'Investors'}
-        </h1>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-base-300">
-        <button 
-          onClick={() => {
-            setActiveTab('funds');
-            setPage(1);
-          }}
-          className={`pb-2 px-1 ${activeTab === 'funds' ? 'border-b-2 border-primary font-semibold' : ''}`}
-        >
-          Investment Funds
-        </button>
-        <button 
-          onClick={() => {
-            setActiveTab('investors');
-            setPage(1);
-          }}
-          className={`pb-2 px-1 ${activeTab === 'investors' ? 'border-b-2 border-primary font-semibold' : ''}`}
-        >
-          Investors
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <input
-          type="text"
-          placeholder="Search..."
-          className="input input-bordered w-full max-w-xs"
-          value={filters.search}
-          onChange={(e) => setFilters(prev => ({...prev, search: e.target.value}))}
-        />
-        
-        <select 
-          className="select select-bordered"
-          value={filters.country}
-          onChange={(e) => setFilters(prev => ({...prev, country: e.target.value}))}
-        >
-          <option value="">All Countries</option>
-          {_.uniq(data.map(item => activeTab === 'funds' ? item.firmCountry : item.country)).filter(Boolean).map(country => (
-            <option key={country} value={country}>{country}</option>
-          ))}
-        </select>
-
-        <select 
-          className="select select-bordered"
-          value={filters.industry}
-          onChange={(e) => setFilters(prev => ({...prev, industry: e.target.value}))}
-        >
-          <option value="">All Industries</option>
-          {_.uniq(data.flatMap(item => item.industryPreferences || [])).filter(Boolean).map(industry => (
-            <option key={industry} value={industry}>{industry}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Data Table */}
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <span className="loading loading-spinner loading-lg"></span>
+    <div className="max-w-7xl mx-auto">
+      <div className="flex gap-8">
+        {/* Filter Panel */}
+        <div className="w-80 shrink-0">
+          <FilterPanel 
+            type={activeTab} 
+            onFilterChange={handleFilterChange}
+          />
         </div>
-      ) : (
-        <div className="overflow-x-auto bg-base-100 rounded-box shadow-sm">
-          <table className="table table-zebra w-full">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Contact</th>
-                <th>Investment Range</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((item, index) => (
-                <tr key={index} className="hover">
-                  <td>
-                    {activeTab === 'funds' ? item.firmName : `${item.firstName} ${item.lastName}`}
-                    {item.firmName && <div className="text-sm opacity-60">{item.firmName}</div>}
-                  </td>
-                  <td>
-                    {activeTab === 'funds' ? item.firmCity : item.city}
-                    <div className="text-sm opacity-60">
-                      {activeTab === 'funds' ? item.firmCountry : item.country}
-                    </div>
-                  </td>
-                  <td>
-                    <a href={`mailto:${item.contactEmail || item.email}`} className="link link-primary">
-                      {item.contactEmail || item.email}
-                    </a>
-                    {item.contactPhone && (
-                      <div className="text-sm opacity-60">{item.contactPhone}</div>
-                    )}
-                  </td>
-                  <td>
-                    {(item.minInvestment || item.maxInvestment) && (
-                      <div className="text-sm">
-                        {item.minInvestment && `$${item.minInvestment.toLocaleString()}`}
-                        {item.minInvestment && item.maxInvestment && ' - '}
-                        {item.maxInvestment && `$${item.maxInvestment.toLocaleString()}`}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <Popover className="relative">
-                      <Popover.Button className="btn btn-sm">View Details</Popover.Button>
-                      <Popover.Panel className="absolute z-10 right-0 mt-2 bg-base-100 p-4 rounded-box shadow-lg w-80">
-                        <div className="space-y-4">
-                          <h3 className="font-semibold border-b pb-2">Investment Preferences</h3>
-                          
-                          {item.industryPreferences?.length > 0 && (
-                            <div>
-                              <div className="text-sm font-medium mb-1">Industries:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {item.industryPreferences.map(industry => (
-                                  <span key={industry} className="badge badge-sm">{industry}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {item.stagePreferences?.length > 0 && (
-                            <div>
-                              <div className="text-sm font-medium mb-1">Stages:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {item.stagePreferences.map(stage => (
-                                  <span key={stage} className="badge badge-sm">{stage}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {item.geographicPreferences?.length > 0 && (
-                            <div>
-                              <div className="text-sm font-medium mb-1">Geographic Focus:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {item.geographicPreferences.map(geo => (
-                                  <span key={geo} className="badge badge-sm">{geo}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {item.capitalManaged > 0 && (
-                            <div>
-                              <div className="text-sm font-medium mb-1">Capital Managed:</div>
-                              <div className="text-sm">
-                                ${item.capitalManaged.toLocaleString()}
-                              </div>
-                            </div>
-                          )}
+
+        {/* Main Content */}
+        <div className="flex-1 space-y-8">
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">
+              {activeTab === 'funds' ? 'Investment Funds' : 'Investors'}
+            </h1>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-base-300">
+            <button 
+              onClick={() => {
+                setActiveTab('funds');
+                setPage(1);
+              }}
+              className={`pb-2 px-1 ${activeTab === 'funds' ? 'border-b-2 border-primary font-semibold' : ''}`}
+            >
+              Investment Funds
+            </button>
+            <button 
+              onClick={() => {
+                setActiveTab('investors');
+                setPage(1);
+              }}
+              className={`pb-2 px-1 ${activeTab === 'investors' ? 'border-b-2 border-primary font-semibold' : ''}`}
+            >
+              Investors
+            </button>
+          </div>
+
+          {/* Data Table */}
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <span className="loading loading-spinner loading-lg"></span>
+            </div>
+          ) : (
+            <div className="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+              <table className="table table-zebra w-full">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Location</th>
+                    <th>Contact</th>
+                    <th>Investment Range</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((item, index) => (
+                    <tr key={index} className="hover">
+                      <td>
+                        {activeTab === 'funds' ? item.firmName : `${item.firstName} ${item.lastName}`}
+                        {item.firmName && <div className="text-sm opacity-60">{item.firmName}</div>}
+                      </td>
+                      <td>
+                        {activeTab === 'funds' ? item.firmCity : item.city}
+                        <div className="text-sm opacity-60">
+                          {activeTab === 'funds' ? item.firmCountry : item.country}
                         </div>
-                      </Popover.Panel>
-                    </Popover>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      </td>
+                      <td>
+                        <a href={`mailto:${item.contactEmail || item.email}`} className="link link-primary">
+                          {item.contactEmail || item.email}
+                        </a>
+                        {item.contactPhone && (
+                          <div className="text-sm opacity-60">{item.contactPhone}</div>
+                        )}
+                      </td>
+                      <td>
+                        {(item.minInvestment || item.maxInvestment) && (
+                          <div className="text-sm">
+                            {item.minInvestment && `$${item.minInvestment.toLocaleString()}`}
+                            {item.minInvestment && item.maxInvestment && ' - '}
+                            {item.maxInvestment && `$${item.maxInvestment.toLocaleString()}`}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <Popover className="relative">
+                          <Popover.Button className="btn btn-sm">View Details</Popover.Button>
+                          <Popover.Panel className="absolute z-10 right-0 mt-2 bg-base-100 p-4 rounded-box shadow-lg w-80">
+                            <div className="space-y-4">
+                              <h3 className="font-semibold border-b pb-2">Investment Preferences</h3>
+                              
+                              {item.industryPreferences?.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-medium mb-1">Industries:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {item.industryPreferences.map(industry => (
+                                      <span key={industry} className="badge badge-sm">{industry}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {item.stagePreferences?.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-medium mb-1">Stages:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {item.stagePreferences.map(stage => (
+                                      <span key={stage} className="badge badge-sm">{stage}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {item.geographicPreferences?.length > 0 && (
+                                <div>
+                                  <div className="text-sm font-medium mb-1">Geographic Focus:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {item.geographicPreferences.map(geo => (
+                                      <span key={geo} className="badge badge-sm">{geo}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {item.capitalManaged > 0 && (
+                                <div>
+                                  <div className="text-sm font-medium mb-1">Capital Managed:</div>
+                                  <div className="text-sm">
+                                    ${item.capitalManaged.toLocaleString()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </Popover.Panel>
+                        </Popover>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {/* Pagination */}
-      <div className="flex justify-center gap-2">
-        <button
-          className="btn btn-sm"
-          onClick={() => setPage(p => Math.max(1, p - 1))}
-          disabled={page === 1}
-        >
-          Previous
-        </button>
-        <span className="flex items-center px-4">
-          Page {page} of {totalPages}
-        </span>
-        <button
-          className="btn btn-sm"
-          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages}
-        >
-          Next
-        </button>
+          {/* Pagination */}
+          <div className="flex justify-center gap-2">
+            <button
+              className="btn btn-sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </button>
+            <span className="flex items-center px-4">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              className="btn btn-sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
