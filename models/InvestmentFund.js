@@ -26,7 +26,8 @@ const InvestmentFundSchema = new mongoose.Schema(
     firmType: { type: String } 
   },
   {
-    timestamps: true, 
+    timestamps: true,
+    collection: 'funds' 
   }
 );
 

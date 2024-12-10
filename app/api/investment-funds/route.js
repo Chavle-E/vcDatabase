@@ -1,3 +1,5 @@
+// app/api/investment-funds/route.js
+
 import { NextResponse } from "next/server";
 import connectMongo from "@/libs/mongoose";
 import InvestmentFund from "@/models/InvestmentFund";

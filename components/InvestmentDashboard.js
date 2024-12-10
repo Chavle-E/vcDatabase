@@ -1,34 +1,59 @@
-// components/InvestmentDashboard.js
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Popover } from '@headlessui/react';
+import { useRouter, usePathname } from 'next/navigation';
 import FilterPanel from './FilterPanel';
 import _ from 'lodash';
 
 const InvestmentDashboard = ({ initialTab = 'funds' }) => {
+  const router = useRouter();
+  const pathname = usePathname();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [filters, setFilters] = useState({});
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Update URL when tab changes
+  const handleTabChange = (tab) => {
+    const newPath = `/${tab === 'funds' ? 'investment-funds' : 'investors'}`;
+    router.push(newPath);
+    setActiveTab(tab);
+    setPage(1);
+  };
+  
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setPage(1); // Reset to first page when filters change
+  };
 
   useEffect(() => {
+    // Update active tab based on URL
+    if (pathname.includes('investment-funds')) {
+      setActiveTab('funds');
+    } else if (pathname.includes('investors')) {
+      setActiveTab('investors');
+    }
+  }, [pathname]);
+  
+  useEffect(() => {
     fetchData();
-  }, [activeTab, page, filters]);
+  }, [activeTab, page, filters, searchTerm]);
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
       
-      // Convert filters object to URL parameters
+      const endpoint = activeTab === 'funds' ? 'investment-funds' : 'investors';
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50'
+        limit: '50',
+        search: searchTerm
       });
-
+      
       // Add filters to params
       Object.entries(filters).forEach(([category, fields]) => {
         Object.entries(fields).forEach(([field, value]) => {
@@ -44,33 +69,80 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
         });
       });
       
-      const response = await fetch(`/api/${activeTab}?${params}`);
+      const response = await fetch(`/api/${endpoint}?${params}`);
       const result = await response.json();
       
       if (result.error) {
         throw new Error(result.error);
       }
       
-      setData(result[activeTab === 'funds' ? 'funds' : 'investors']);
-      setTotalPages(result.pagination.totalPages);
+      setData(result[activeTab === 'funds' ? 'funds' : 'investors'] || []);
+      setTotalPages(result.pagination?.totalPages || 0);
       
     } catch (error) {
       console.error('Error fetching data:', error);
+      setData([]);
+      setTotalPages(0);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
-  };
-
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="flex gap-8">
+      {/* Page Header */}
+      <div className="mb-8 space-y-4">
+        <h1 className="text-3xl font-bold">
+          {activeTab === 'funds' ? 'Investment Funds' : 'Investors'} Database
+        </h1>
+        <p className="text-base-content/70">
+          Browse and filter through our comprehensive database of 
+          {activeTab === 'funds' ? ' investment funds ' : ' investors '} 
+          to find your perfect match.
+        </p>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div className="tabs tabs-boxed">
+          <button 
+            className={`tab ${activeTab === 'funds' ? 'tab-active' : ''}`}
+            onClick={() => handleTabChange('funds')}
+          >
+            Investment Funds
+          </button>
+          <button 
+            className={`tab ${activeTab === 'investors' ? 'tab-active' : ''}`}
+            onClick={() => handleTabChange('investors')}
+          >
+            Investors
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="form-control w-full sm:w-auto">
+          <div className="input-group">
+            <input
+              type="text"
+              placeholder="Search by name, location..."
+              className="input input-bordered w-full max-w-sm"
+              onChange={(e) => {
+                const value = e.target.value;
+                _.debounce(() => setSearchTerm(value), 300)();
+              }}
+            />
+            <button className="btn btn-square">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Filter Panel */}
-        <div className="w-80 shrink-0">
+        <div className="w-full lg:w-80 shrink-0">
           <FilterPanel 
             type={activeTab} 
             onFilterChange={handleFilterChange}
@@ -79,39 +151,28 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
 
         {/* Main Content */}
         <div className="flex-1 space-y-8">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">
-              {activeTab === 'funds' ? 'Investment Funds' : 'Investors'}
-            </h1>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-4 border-b border-base-300">
-            <button 
-              onClick={() => {
-                setActiveTab('funds');
-                setPage(1);
-              }}
-              className={`pb-2 px-1 ${activeTab === 'funds' ? 'border-b-2 border-primary font-semibold' : ''}`}
-            >
-              Investment Funds
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab('investors');
-                setPage(1);
-              }}
-              className={`pb-2 px-1 ${activeTab === 'investors' ? 'border-b-2 border-primary font-semibold' : ''}`}
-            >
-              Investors
-            </button>
-          </div>
-
-          {/* Data Table */}
           {isLoading ? (
-            <div className="flex justify-center py-12">
+            <div className="flex justify-center items-center min-h-[400px]">
               <span className="loading loading-spinner loading-lg"></span>
+            </div>
+          ) : data.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h3 className="text-lg font-semibold">No results found</h3>
+                <p className="text-base-content/70">Try adjusting your search or filters</p>
+              </div>
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={() => {
+                  setFilters({});
+                  setSearchTerm("");
+                }}
+              >
+                Clear all filters
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto bg-base-100 rounded-box shadow-sm">
@@ -215,25 +276,30 @@ const InvestmentDashboard = ({ initialTab = 'funds' }) => {
           )}
 
           {/* Pagination */}
-          <div className="flex justify-center gap-2">
-            <button
-              className="btn btn-sm"
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              Previous
-            </button>
-            <span className="flex items-center px-4">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              className="btn btn-sm"
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-            >
-              Next
-            </button>
-          </div>
+          {data.length > 0 && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-base-content/70">
+                Page {page} of {totalPages}
+              </span>
+              <div className="join">
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  «
+                </button>
+                <button className="join-item btn btn-sm">Page {page}</button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

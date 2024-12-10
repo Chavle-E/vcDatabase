@@ -18,7 +18,10 @@ const InvestorSchema = new mongoose.Schema(
     minInvestment: { type: Number },
     maxInvestment: { type: Number },
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    collection: "investors"
+   }
 );
 
 export default mongoose.models.Investor || mongoose.model("Investor", InvestorSchema);
