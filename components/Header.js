@@ -10,6 +10,14 @@ import config from "@/config";
 
 const links = [
   {
+    href: "/#investors",
+    label: "Investors"
+  },
+  {
+    href: "/#investment-funds",
+    label: "Investment Funds"
+  },
+  {
     href: "/#pricing",
     label: "Pricing",
   },
